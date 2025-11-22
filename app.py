@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, render_template_string
-from datetime import datetime
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
 
@@ -9,6 +9,9 @@ messages = []
 # Track connected users
 connected_users = {}
 next_anon_id = 1
+
+# Time limit for messages (5 minutes)
+MESSAGE_LIFETIME = timedelta(minutes=5)
 
 # ================= Website HTML =================
 HTML_PAGE = """
@@ -64,10 +67,18 @@ HTML_PAGE = """
 def home():
     return render_template_string(HTML_PAGE)
 
+# ================= Clean old messages =================
+def clean_old_messages():
+    global messages
+    now = datetime.utcnow()
+    messages = [m for m in messages if datetime.fromisoformat(m["time"]) + MESSAGE_LIFETIME > now]
+
 # ================= Send message / connect / disconnect =================
 @app.route("/send", methods=["POST"])
 def send():
     global next_anon_id
+    clean_old_messages()
+
     data = request.get_json()
     username = data.get("username", "Unknown")
     message = data.get("message", "")
@@ -122,6 +133,7 @@ def send():
 
 @app.route("/get", methods=["GET"])
 def get_messages():
+    clean_old_messages()
     return jsonify(messages), 200
 
 if __name__ == "__main__":
